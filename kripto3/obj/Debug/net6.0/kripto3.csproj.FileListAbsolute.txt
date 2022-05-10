@@ -1,0 +1,15 @@
+C:\Users\tri29\Desktop\kripto3\bin\Debug\net6.0\kripto3.exe
+C:\Users\tri29\Desktop\kripto3\bin\Debug\net6.0\kripto3.deps.json
+C:\Users\tri29\Desktop\kripto3\bin\Debug\net6.0\kripto3.runtimeconfig.json
+C:\Users\tri29\Desktop\kripto3\bin\Debug\net6.0\kripto3.dll
+C:\Users\tri29\Desktop\kripto3\bin\Debug\net6.0\kripto3.pdb
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.csproj.AssemblyReference.cache
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.AssemblyInfoInputs.cache
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.AssemblyInfo.cs
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.csproj.CoreCompileInputs.cache
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.dll
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\refint\kripto3.dll
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.pdb
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\kripto3.genruntimeconfig.cache
+C:\Users\tri29\Desktop\kripto3\obj\Debug\net6.0\ref\kripto3.dll
