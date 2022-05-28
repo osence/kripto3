@@ -1,37 +1,100 @@
-﻿using System.Security.Cryptography;
+﻿using System;
+using System.IO;
 using System.Xml.Serialization;
+using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
+using System.Xml;
 
-// See https://aka.ms/new-console-template for more information
-// Ключ для симметричного криптоалгоритма DES-64 (8 символов)
-Console.WriteLine($"enter your DES-64 key:");
-string sKey = Console.ReadLine();
-sKey = "sdfsdfsd";
+public class Program
+{
+    public static void Main()
+    {
+        Console.WriteLine("Процесс создания rsa-ключей Первым пользователем\n");
+        // Запишем публичный ключ в файл
+        RsaEncryption rsa = new RsaEncryption();
 
-// Путь к документу с информацией для шифрования
-Console.WriteLine($"Enter the path with text to encrypt:");
-string source = Console.ReadLine();
-source = ".\\kriptoDoc.txt";
+        if (!File.Exists("./publicKey.txt")) File.Create("./publicKey.txt").Close();
+        FileStream pkfs = new FileStream("./publicKey.txt", FileMode.Create, FileAccess.Write);
+        byte[] pkba = Encoding.Unicode.GetBytes(rsa.GetPublicKey());
+        pkfs.Write(pkba, 0, pkba.Length);
+        pkfs.Close();
+        //Console.WriteLine($"\nПубличный ключ: {rsa.GetPublicKey()} \n");
 
-// Путь к документу для вывода зашифрованой информации
-Console.WriteLine($"Enter the path to decrypt:");
-string destination = Console.ReadLine();
-destination = ".\\kriptoDoc2.txt";
 
-// Шифрование документа с помощью DES-64
-DesEncryption(source, destination, sKey);
+        Console.WriteLine("Второй пользователь получает от первого публичный ключ\n");
+        // Достанем ключ из файла и закодируем сообщение
+        pkfs = new FileStream("./publicKey.txt", FileMode.Open, FileAccess.Read);
+        pkba = new byte[pkfs.Length - 0];
+        pkfs.Read(pkba, 0, pkba.Length);
+        string rsapk = Encoding.Unicode.GetString(pkba);
+        if (!File.Exists("./message.txt")) File.Create("./message.txt").Close();
+        Console.WriteLine($"Введите сообщение:");
+        string msg = Console.ReadLine();
 
-// Шифрование ключа для DES-64 алгоритма с помощью RSA алгоритма
-RSAfunc(sKey, source);
+        FileStream msgfs = new FileStream("./message.txt", FileMode.Create, FileAccess.Write);
+        byte[] msgba = Encoding.Unicode.GetBytes(msg);
+        msgfs.Write(msgba, 0 , msgba.Length);
+        msgfs.Close();
 
-// Путь к документу для сверки дешифровки
-source = destination;
-Console.WriteLine($"Enter the path to check valid decryption:");
-destination = Console.ReadLine();
-destination = ".\\kriptoDoc3.txt";
+        if (!File.Exists("./encryptedFile.txt")) File.Create("./encryptedFile.txt").Close();
+        if (!File.Exists("./encryptedDesKey.txt")) File.Create("./desKey.txt").Close();
+        if (!File.Exists("./desIV.txt")) File.Create("./desIV.txt").Close();
 
-// Расшифрование документа
-DesDecryption(source, destination, sKey);
+        Console.Write("\nПроцесс шифрования сообщения");
+        if (DesEncryption("./message.txt", "./encryptedFile.txt", "./encryptedDesKey.txt", "./desIV.txt", rsapk))
+        {
+            Console.WriteLine("- Успешно\n");
+        }else{
+            Console.WriteLine("- Ошибка\n");
+        }
+
+
+
+
+
+        Console.WriteLine("Второй пользователь передает первому следующие данные:\n1) Зашифрованный DES-ключ \n2) Зашифрованный файл \n3) DES-вектор\n");
+        FileStream encryptedtextfs = new FileStream("./encryptedFile.txt", FileMode.Open, FileAccess.Read);
+
+        FileStream encrypteddeskeyfs = new FileStream("./encryptedDesKey.txt", FileMode.Open, FileAccess.Read);
+        byte[] encrypteddeskeyba = new byte[encrypteddeskeyfs.Length - 0];
+        encrypteddeskeyfs.Read(encrypteddeskeyba, 0, encrypteddeskeyba.Length);
+
+        Console.WriteLine("Первый пользователь расшифровывает DES-ключ с помощью приватного ключа - Успешно");
+        string deskey = rsa.Decrypt(Encoding.Unicode.GetString(encrypteddeskeyba));
+        byte[] deskeyba = Encoding.Unicode.GetBytes(deskey);
+
+        FileStream desivfs = new FileStream("./desIV.txt", FileMode.Open, FileAccess.Read);
+        byte[] desivba = new byte[desivfs.Length - 0];
+        desivfs.Read(desivba, 0, desivba.Length);
+        if (!File.Exists("./decryptedFile.txt")) File.Create("./decryptedFile.txt").Close();
+        Console.Write("Первый пользователь расшифровывает файл ");
+        if (DesDecryption("./encryptedFile.txt", "./decryptedFile.txt", deskeyba, desivba))
+        {
+            Console.WriteLine("- Успешно\n");
+        }else{
+            Console.WriteLine("- Ошибка\n");
+        }
+
+        rsa.GetCaption("./decryptedFile.txt");
+
+		Console.WriteLine($"\nСверяем содержимое изначального файла и расшифрованного:");
+		
+        FileStream fsInputSrc = new FileStream("./message.txt", FileMode.Open, FileAccess.Read);
+        byte[] bytearraySrc = new byte[fsInputSrc.Length - 0];
+        fsInputSrc.Read(bytearraySrc, 0, bytearraySrc.Length);
+        
+        FileStream fsInputDst = new FileStream("./decryptedFile.txt", FileMode.Open, FileAccess.Read);
+        byte[] bytearrayDst = new byte[fsInputDst.Length - 0];
+        fsInputDst.Read(bytearrayDst, 0, bytearrayDst.Length);
+        
+        if (bytearraySrc.SequenceEqual(bytearrayDst)){
+            Console.WriteLine($"Файлы совпали\nПрограмма завершена успешно");
+        }else{
+            Console.WriteLine($"Файлы не совпали\nПрограмма завершена с ошибкой");
+        }
+	}
+
 
 
 /*
@@ -42,34 +105,45 @@ DesDecryption(source, destination, sKey);
     destination - Выходной документ с шифром
     sKey - Ключ шифрования
 */
-void DesEncryption(string source, string destination, string sKey){
+public static Boolean DesEncryption(string msgFile, string encryptedMsgFile, string encryptedDesKeyFile, string desIVFile, string rsapk){
 
-    FileStream fsInput = new FileStream(source, FileMode.Open, FileAccess.Read);
-    FileStream fsEncrypted = new FileStream(destination, FileMode.Create, FileAccess.Write);
+    //Console.Write(File.ReadAllText(source));
+    FileStream fsEncrypted = new FileStream(encryptedMsgFile, FileMode.Create, FileAccess.Write);
+    FileStream fsDesKeyfile = new FileStream(encryptedDesKeyFile, FileMode.Create, FileAccess.Write);
+    FileStream fsDesivfile = new FileStream(desIVFile, FileMode.Create, FileAccess.Write);
+    FileStream fsmsgfile = new FileStream(msgFile, FileMode.Open, FileAccess.Read);
+    RsaEncryption rsa = new RsaEncryption();
+    rsa.SetPublicKey(rsapk);
     // DES объект
     DESCryptoServiceProvider DES = new DESCryptoServiceProvider();
+
     try
     {
-        // Устанавливаем ключ и начальный вектор DES
-        DES.Key = ASCIIEncoding.ASCII.GetBytes(sKey);
-        DES.IV = ASCIIEncoding.ASCII.GetBytes(sKey);
-        // Объект для шифровки
+        DES.GenerateKey();
+        
         ICryptoTransform desencrypt = DES.CreateEncryptor();
         CryptoStream cryptostream = new CryptoStream(fsEncrypted, desencrypt, CryptoStreamMode.Write);
-        byte[] bytearrayinput = new byte[fsInput.Length - 0];
-        fsInput.Read(bytearrayinput, 0, bytearrayinput.Length);
         // Шифруем и записываем в файл
+        byte[] bytearrayinput = new byte[fsmsgfile.Length - 0];
+        fsmsgfile.Read(bytearrayinput, 0, bytearrayinput.Length);
         cryptostream.Write(bytearrayinput, 0, bytearrayinput.Length);
         cryptostream.Close();
+        
+        string encryptedKey = rsa.Encrypt(Encoding.Unicode.GetString(DES.Key));
+        byte[] encryptedKeyba = Encoding.Unicode.GetBytes(encryptedKey);
+        fsDesKeyfile.Write(encryptedKeyba, 0, encryptedKeyba.Length);
+        fsDesivfile.Write(DES.IV, 0, DES.IV.Length);
     }
     catch(Exception e)
     {
         Console.WriteLine(e);
+        return false;
     }
-    fsInput.Close();
     fsEncrypted.Close();
-    }
-
+    fsDesKeyfile.Close();
+    fsDesivfile.Close();
+    return true;
+}
 
 /*
     Функция для расшифровки документа 
@@ -79,17 +153,19 @@ void DesEncryption(string source, string destination, string sKey){
     destination - Выходной документ с расшифровкой
     sKey - Ключ шифрования
 */
-void DesDecryption(string source, string destination, string sKey){
+public static Boolean DesDecryption(string source, string destination, byte[] deskeyba, byte[] desivba){
 
     FileStream fsInput = new FileStream(source, FileMode.Open, FileAccess.Read);
     FileStream fsEncrypted = new FileStream(destination, FileMode.Create, FileAccess.Write);
+
     // DES объект
     DESCryptoServiceProvider DES = new DESCryptoServiceProvider();
     try
     {
         // Устанавливаем ключ и начальный вектор DES
-        DES.Key = ASCIIEncoding.ASCII.GetBytes(sKey);
-        DES.IV = ASCIIEncoding.ASCII.GetBytes(sKey);
+        DES.Key = deskeyba;
+        DES.IV = desivba;
+
         // Объект для расшифровки
         ICryptoTransform desencrypt = DES.CreateDecryptor();
         CryptoStream cryptostream = new CryptoStream(fsEncrypted, desencrypt, CryptoStreamMode.Write);
@@ -102,39 +178,13 @@ void DesDecryption(string source, string destination, string sKey){
     catch(Exception e)
     {
         Console.WriteLine(e);
+        return false;
     }
     fsInput.Close();
     fsEncrypted.Close();
-    }
-
-
-/*
-    Функция для шифрования ключа
-    с помощью криптоалгоритма RSA-2048
-    
-    sKey - Строка для шифрования 
-    source - Документ для создания и сверки подписи
-*/
-void RSAfunc(string sKey, string source)
-{
-    // Объект RSA
-    RsaEncryption rsa = new RsaEncryption();
-    string cypherText = string.Empty;
-
-    Console.WriteLine($"Public Key: {rsa.GetPublicKey()} \n");
-    // По заданию шифруем DES ключ с помощью RSA
-    cypherText = rsa.Encrypt(sKey);
-    Console.WriteLine($"Encrypted Key: {cypherText}");
-
-    // По заданию расшифровываем DES ключ с помощью RSA
-    var plainText = rsa.Decrypt(cypherText);
-    Console.WriteLine($"Decrypted Key: {plainText}");
-
-    // По заданию получаем подпись документ
-    rsa.GetCaption(source);
+    return true;
 }
-
-
+}
 /*
     Класс RSA-2048 криптоалгоритма
 */
@@ -154,7 +204,44 @@ public class RsaEncryption {
         return;
     }
 
+    public void SetPublicKey(string pk)
+    {
+        // FileStream fspkFile = new FileStream(pkFile, FileMode.Open, FileAccess.Read);
+        // var sw = new StringWriter();
+        // var xs = new XmlSerializer(typeof(RSAParameters));
+        
+        // _publicKey =  (RSAParameters)xs.Deserialize(fspkFile);
+        // return;
+        //get a stream from the string
+        var sr = new System.IO.StringReader(pk);
+        //we need a deserializer
+        var xs = new System.Xml.Serialization.XmlSerializer(typeof(RSAParameters));
+        //get the object back from the stream
 
+        
+        _publicKey = (RSAParameters)xs.Deserialize(sr);
+        
+        return;
+    }
+    public void SetPrivateKey(string pk)
+    {
+        // FileStream fspkFile = new FileStream(pkFile, FileMode.Open, FileAccess.Read);
+        // var sw = new StringWriter();
+        // var xs = new XmlSerializer(typeof(RSAParameters));
+        
+        // _publicKey =  (RSAParameters)xs.Deserialize(fspkFile);
+        // return;
+        //get a stream from the string
+        var sr = new System.IO.StringReader(pk);
+        //we need a deserializer
+        var xs = new System.Xml.Serialization.XmlSerializer(typeof(RSAParameters));
+        //get the object back from the stream
+
+        
+        _privateKey = (RSAParameters)xs.Deserialize(sr);
+        
+        return;
+    }
     /*
         Функция для получения публичного ключа
     */
@@ -163,6 +250,14 @@ public class RsaEncryption {
         var sw = new StringWriter();
         var xs = new XmlSerializer(typeof(RSAParameters));
         xs.Serialize(sw,_publicKey);
+        return sw.ToString();
+    }
+
+    public string GetPrivateKey()
+    {
+        var sw = new StringWriter();
+        var xs = new XmlSerializer(typeof(RSAParameters));
+        xs.Serialize(sw,_privateKey);
         return sw.ToString();
     }
 
@@ -189,13 +284,57 @@ public class RsaEncryption {
     */
     public string Decrypt(string cypherText)
     {
+        string password = "itsmypass";
+        if (!File.Exists("./encryptedKey.txt")) File.Create("./encryptedKey.txt").Close();
+        FileStream fsEncrypted = new FileStream("./encryptedKey.txt", FileMode.Create, FileAccess.Write);
+        
+        var key = sha256_hash(password);
+        DESCryptoServiceProvider DES = new DESCryptoServiceProvider();
+        byte[] temp = new byte[8];
+        Array.Copy(key, 0, temp, 0, 8);
+        DES.Key = temp;
+        DES.IV = temp;
+        ICryptoTransform desencrypt = DES.CreateEncryptor();
+        CryptoStream cryptostream = new CryptoStream(fsEncrypted, desencrypt, CryptoStreamMode.Write);
+        byte[] bytearrayinput = Encoding.Unicode.GetBytes(GetPrivateKey());
+        cryptostream.Write(bytearrayinput, 0, bytearrayinput.Length);
+        cryptostream.Close();
+        fsEncrypted.Close();
+
+        Console.WriteLine($"Введите пароль:");
+        string userPass = Console.ReadLine();
+
+        if (!File.Exists("./decryptedKey.txt")) File.Create("./decryptedKey.txt").Close();
+        FileStream fsDecrypted = new FileStream("./decryptedKey.txt", FileMode.Create, FileAccess.Write);
+        FileStream fsEncrypted2 = new FileStream("./encryptedKey.txt", FileMode.Open, FileAccess.Read);
+        
+        key = sha256_hash(userPass);
+        Array.Copy(key, 0, temp, 0, 8);
+        DES.Key = temp;
+        DES.IV = temp;
+        ICryptoTransform desencrypt2 = DES.CreateDecryptor();
+        CryptoStream cryptostream2 = new CryptoStream(fsDecrypted, desencrypt2, CryptoStreamMode.Write);
+        byte[] bytearrayinput2 = new byte[fsEncrypted2.Length - 0];
+        fsEncrypted2.Read(bytearrayinput2, 0 ,bytearrayinput2.Length);
+        cryptostream2.Write(bytearrayinput2, 0, bytearrayinput2.Length);
+        cryptostream2.Close();
+        fsDecrypted.Close();
+        fsEncrypted2.Close();
+
+        fsDecrypted = new FileStream("./decryptedKey.txt", FileMode.Open, FileAccess.Read);
+        byte[] bytearrayinput3 = new byte[fsDecrypted.Length - 0];
+        fsDecrypted.Read(bytearrayinput3, 0 ,bytearrayinput3.Length);
+        fsDecrypted.Close();
+        SetPrivateKey(Encoding.Unicode.GetString(bytearrayinput3));
+        
+
+        
         var dataBytes = Convert.FromBase64String(cypherText);
         csp.ImportParameters(_privateKey);
         // Расшифровка с помощью встроенной функции Encrypt
         var plainText = csp.Decrypt(dataBytes, false);
         return Encoding.Unicode.GetString(plainText);
     }
-
 
     /*
         Функция для получения и проверки подписи документа
@@ -204,23 +343,38 @@ public class RsaEncryption {
     */
     public byte[] GetCaption(string source)
     {
+        // Чтение файла с текстом
         FileStream fsInput = new FileStream(source, FileMode.Open, FileAccess.Read);
         byte[] bytearrayinput = new byte[fsInput.Length - 0];
         fsInput.Read(bytearrayinput, 0, bytearrayinput.Length);
 
-        var encoder = new UTF8Encoding();
+        // Создание подписи открытого файла
         byte[] signedBytes  = csp.SignData(bytearrayinput, CryptoConfig.MapNameToOID("SHA512"));
-        Console.WriteLine("Подпись");
-        foreach(byte b in signedBytes)
-        {
-            Console.Write(b.ToString("x2"));
+        Console.WriteLine($"\nСоздаем подпись документа:");
+        // foreach(byte b in signedBytes)
+        // {
+        //     Console.Write(b.ToString("x2"));
+        // }
+        // Проверка подписи
+        Console.WriteLine($"\nПроизводим проверку подлинности подписи");
+        
+        if (csp.VerifyData(bytearrayinput, CryptoConfig.MapNameToOID("SHA512"), signedBytes)){
+            Console.WriteLine($"Проверка подписи - Успешно");
+        }else{
+            Console.WriteLine($"Проверка подписи - Ошибка");
         }
-        Console.WriteLine("\nПроверка подписи");
-        Console.WriteLine(csp.VerifyData(bytearrayinput, CryptoConfig.MapNameToOID("SHA512"), signedBytes));
         fsInput.Close();
         return bytearrayinput;
     }
+
+    public static Byte[] sha256_hash(String value) {
+        Byte[] result;
+        using (SHA256 hash = SHA256Managed.Create()) {
+            Encoding enc = Encoding.UTF8;
+            result = hash.ComputeHash(enc.GetBytes(value));
+
+        }
+
+        return result;
+    }
 }
-
-
-
